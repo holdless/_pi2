@@ -468,6 +468,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
   DBG("\n\n\n buffer length: %d \n", buffer->length);
   DBG("\n\n\n pData length: %d \n\n\n", pData->length);
   
+  
 //git test 635.4.0824
   
       memcpy(pData->data, buffer->data, buffer->length);
