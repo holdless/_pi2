@@ -82,6 +82,15 @@ struct _control {
 struct _globals {
     int stop;
 
+    // 636.4.0901 hiroshi#5: add variables for opencv accessing frame
+    /* signal fresh frames */
+    pthread_mutex_t db;
+    pthread_cond_t  db_update;
+    unsigned char *buf;
+    int size;
+    int camBufCallbackOn;
+
+    
     /* input plugin */
     input in[MAX_INPUT_PLUGINS];
     int incnt;

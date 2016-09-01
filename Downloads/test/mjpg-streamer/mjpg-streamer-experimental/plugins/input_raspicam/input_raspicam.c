@@ -111,8 +111,6 @@ typedef struct
   VCOS_SEMAPHORE_T complete_semaphore; /// semaphore which is posted when we reach end of frame (indicates end of capture or fault)
   MMAL_POOL_T *pool; /// pointer to our state in case required in callback
   uint32_t offset;
-  unsigned char *data;
-  unsigned int length;
 } PORT_USERDATA;
 
 /*** plugin interface functions ***/
@@ -352,13 +350,17 @@ void print_mmal_status(MMAL_STATUS_T status)
  ******************************************************************************/
 static void encoder_input_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
+//  DBG("\n\n\n start encoder input callback");
+
   // We pass our file handle and other stuff in via the userdata field.
-  PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
+//  PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
 
   // release buffer back to the pool
   mmal_buffer_header_release(buffer);
 
-  vcos_semaphore_post(&(pData->complete_semaphore));
+//  vcos_semaphore_post(&(pData->complete_semaphore));
+  
+//  DBG("\n\n\n finish encoder input callback");
 
 }
 
@@ -443,6 +445,10 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
   int complete = 0;
+  if (pglobal->camBufCallbackOn == 0)
+    pglobal->camBufCallbackOn = 1;
+  
+//  DBG("\n\n\npglobal->camBufCallbackOn: %d\n\n\n", pglobal->camBufCallbackOn);
 
   // We pass our file handle and other stuff in via the userdata field.
   PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
@@ -452,29 +458,15 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
     if (buffer->length)
     {
       mmal_buffer_header_mem_lock(buffer);
-
-
-      //Write bytes
-      /* copy video buffer to global buffer */
-      if(pData->offset == 0)
-        pthread_mutex_lock(&pglobal->vdb);
       
-            // 635.2.0823 hiroshi: print variables
-//      if (buffer->length > 0)
-//	printf("buffer length: %d\n", buffer->length);
-
-  DBG("\n\n\n im in video callback function before memcpy \n\n\n");
-  DBG("\n\n\n buffer data: %d \n", buffer->data);
-  DBG("\n\n\n buffer length: %d \n", buffer->length);
-  DBG("\n\n\n pData length: %d \n\n\n", pData->length);
-  
-  
-//git test 635.4.0824
-  
-      memcpy(pData->data, buffer->data, buffer->length);
-  DBG("\n\n\n im in video callback function after memcpy \n\n\n");
-      pData->length = buffer->length;
-//      pData->offset += buffer->length;
+      //Write bytes
+      /* copy JPG picture to global buffer */
+      if(pData->offset == 0)
+        pthread_mutex_lock(&pglobal->db);
+      
+      
+      memcpy(pData->offset + pglobal->buf, buffer->data, buffer->length);
+      pData->offset += buffer->length;
       //fwrite(buffer->data, 1, buffer->length, pData->file_handle);
       mmal_buffer_header_mem_unlock(buffer);
     }
@@ -483,11 +475,11 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
     if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
     {
       complete = 1;
-      pglobal->in[plugin_number].size = pData->offset;
+      pglobal->size = pData->offset;
       pData->offset = 0;
       /* signal fresh_frame */
-      pthread_cond_broadcast(&pglobal->vdb_update);
-      pthread_mutex_unlock(&pglobal->vdb); 
+      pthread_cond_broadcast(&pglobal->db_update);
+      pthread_mutex_unlock(&pglobal->db); 
     }
   }
   else
@@ -526,7 +518,6 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 
   if (complete)
     vcos_semaphore_post(&(pData->complete_semaphore));
-
 }
 
 /**
@@ -558,6 +549,9 @@ static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 int input_run(int id)
 {
   pglobal->in[id].buf = malloc(width * height * 3);
+  // 636.4.0904 hiroshi: init camera frame buffer
+  pglobal->buf = malloc(width * height * 3);
+
   if (pglobal->in[id].buf == NULL)
   {
     fprintf(stderr, "could not allocate memory\n");
@@ -567,11 +561,14 @@ int input_run(int id)
   if (pthread_create(&worker, 0, worker_thread, NULL) != 0)
   {
     free(pglobal->in[id].buf);
+    // 636.4.0904 hiroshi: free camera frame buffer
+    free(pglobal->buf);
+
     fprintf(stderr, "could not start worker thread\n");
     exit(EXIT_FAILURE);
   }
-  pthread_detach(worker);
 
+  pthread_detach(worker);
   return 0;
 }
 
@@ -1179,34 +1176,8 @@ void *worker_thread(void *arg)
 //    while(!pglobal->stop) usleep(1000);
 
 
-// 635.2.0823 hiroshi: send camera buffer to encoder input port
-/*    int numi = mmal_queue_length(pooli->queue);
-    int r;
-    for (r=0;r<numi;r++)
-    {
-      MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(pooli->queue);
-      DBG("\n\n\n buffer: %d\n\n\n", buffer);
-      if (!buffer)
-      {
-        fprintf(stderr, "Unable to get a required buffer from pooli queue");
-	DBG("\n\n\n buffer not created for encoder input port \n\n\n");
-      }
-      else
-      {
-	  if (!callback_datav.data)
-	    memcpy (buffer->data, callback_datav.data, callback_datav.length );
-      }
-      
-      if (mmal_port_send_buffer(encoder->input[0], buffer)!= MMAL_SUCCESS)
-      {
-	DBG("\n\n\n buffer NOT sent to encoder input port\n\n\n");
-        fprintf(stderr, "Unable to send a buffer to encoder input port");
-      }
-      else
-  	DBG("\n\n\n buffer sent to encoder input port\n\n\n");
-    }
 
-*/
+
 #endif
 
     DBG("Starting video output\n");
@@ -1243,14 +1214,66 @@ void *worker_thread(void *arg)
     }
     else
   	DBG("\n\n\n mmal_port_parameter_set_boolean success \n\n\n");
+	   
+usleep(1000000);
+    while(!pglobal->stop) 
+    {
+	usleep(1000);
 	
-  	
-    DBG("\n\n\n pglobal stop: %d \n\n\n", pglobal->stop);
-   
+// 635.2.0823 hiroshi: send buffer to encoder input port
+//	int numi = mmal_queue_length(pooli->queue);
+//	DBG("\n\n\nnum=%d\n\n\n", numi);
+//	int r;
+//	for (r=0;r<numi;r++)
+//	{
+	    MMAL_BUFFER_HEADER_T *buffer;
+	    if( (buffer = mmal_queue_get(pooli->queue)) != NULL)
+	    {
 
-    while(!pglobal->stop) usleep(1000);    
+	    if (!buffer)
+	    {
+		fprintf(stderr, "Unable to get a required buffer from pooli queue");
+		DBG("\n\n\n unable to get buffer from pooli queue \n\n\n");
+	    }
+      
+	    DBG("\n\n\n pglobal->camBufCallbackOn: %d \n\n\n", pglobal->camBufCallbackOn);
+      
+	    if (  pglobal->camBufCallbackOn ==1 )
+	    {
+    /* wait for a fresh frame */
+		DBG("\n\n\n ready to unlock \n\n\n");
+//    pthread_mutex_lock(&pglobal->db);
+  //  pthread_cond_wait(&pglobal->db_update, &pglobal->db);
+
+		DBG("\n\n\nglobal buffer: %d size: %d\n\n\n", pglobal->buf, pglobal->size);
+		DBG("\n\n\nbuffer: %d size: %d\n\n\n", buffer->data, buffer->length);
+		buffer->data = malloc(pglobal->size);
+		memcpy(buffer->data, pglobal->buf, pglobal->size);
+	
+		if (mmal_port_send_buffer(encoder->input[0], buffer)!= MMAL_SUCCESS)
+		{
+		    DBG("\n\n\n buffer NOT sent to encoder input port\n\n\n");
+		    fprintf(stderr, "Unable to send a buffer to encoder input port");
+		}
+		else
+		    DBG("\n\n\n buffer sent to encoder input port\n\n\n");
+	
+		free(buffer->data);
+    //  pthread_cond_broadcast(&pglobal->db_update);
+      //pthread_mutex_unlock(&pglobal->db); 
+	    
+	    }
+	    }
+	//}
+
+	
+    }//////////
+    
+    
+    
   }
   
+  DBG("\n\n\nbefore vcos delete\n\n\n");
 #ifdef _camera_callback  
   vcos_semaphore_delete(&callback_datav.complete_semaphore);
 #else
@@ -1350,6 +1373,9 @@ void worker_cleanup(void *arg)
 
   if(pglobal->in[plugin_number].buf != NULL)
     free(pglobal->in[plugin_number].buf);
+  // 636.4.0901 hiroshi#2: free camera frame buffer
+  if(pglobal->buf != NULL)
+    free(pglobal->buf);
 }
 
 
