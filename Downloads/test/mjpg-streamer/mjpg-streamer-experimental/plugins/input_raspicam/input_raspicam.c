@@ -366,6 +366,8 @@ static void encoder_input_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_
 
 static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
+    DBG("\n\n\n in encoder output callback: buffer->length=%d \n\n\n", buffer->length);
+    
   int complete = 0;
 
   // We pass our file handle and other stuff in via the userdata field.
@@ -383,7 +385,6 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
       /* copy JPG picture to global buffer */
       if(pData->offset == 0)
         pthread_mutex_lock(&pglobal->in[plugin_number].db);
-      
       
       memcpy(pData->offset + pglobal->in[plugin_number].buf, buffer->data, buffer->length);
       pData->offset += buffer->length;
@@ -444,6 +445,8 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 //634.4.0818 hiroshi: add camera_buffer_callback function
 static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
+    DBG("\n\n\n in cam buf callback: buffer->length=%d \n\n\n", buffer->length);
+    
   int complete = 0;
   if (pglobal->camBufCallbackOn == 0)
     pglobal->camBufCallbackOn = 1;
@@ -902,9 +905,30 @@ void *worker_thread(void *arg)
     if (encoder)
       mmal_component_destroy(encoder);
   }
-
+  
   encoder_input = encoder->input[0];
   encoder_output = encoder->output[0];
+
+#ifdef _camera_callback
+    // Set the encode format on the encoder input port
+    format = encoder_input->format;
+    format->encoding_variant = MMAL_ENCODING_RGB24; // 633.6.0813 hiroshi: original: I420
+    format->encoding = MMAL_ENCODING_RGB24;
+    format->es->video.width = width;
+    format->es->video.height = height;
+    format->es->video.crop.x = 0;
+    format->es->video.crop.y = 0;
+    format->es->video.crop.width = width;
+    format->es->video.crop.height = height;
+    format->es->video.frame_rate.num = fps;
+    format->es->video.frame_rate.den = 1;
+    status = mmal_port_format_commit(encoder_input);
+    if (status)
+    {
+      fprintf(stderr, "encoder input format couldn't be set");
+      DBG("\n\n\nencoder input format couldn't be set\n\n\n");
+    }
+#endif
 
   // We want same format on input and output
   mmal_format_copy(encoder_output->format, encoder_input->format);
@@ -1218,7 +1242,7 @@ void *worker_thread(void *arg)
 usleep(1000000);
     while(!pglobal->stop) 
     {
-	usleep(1000);
+	usleep(100000);
 	
 // 635.2.0823 hiroshi: send buffer to encoder input port
 //	int numi = mmal_queue_length(pooli->queue);
@@ -1246,9 +1270,10 @@ usleep(1000000);
   //  pthread_cond_wait(&pglobal->db_update, &pglobal->db);
 
 		DBG("\n\n\nglobal buffer: %d size: %d\n\n\n", pglobal->buf, pglobal->size);
-		DBG("\n\n\nbuffer: %d size: %d\n\n\n", buffer->data, buffer->length);
 		buffer->data = malloc(pglobal->size);
+		buffer->length = pglobal->size;
 		memcpy(buffer->data, pglobal->buf, pglobal->size);
+		DBG("\n\n\nbuffer: %d size: %d\n\n\n", buffer->data, buffer->length);
 	
 		if (mmal_port_send_buffer(encoder->input[0], buffer)!= MMAL_SUCCESS)
 		{
@@ -1276,9 +1301,9 @@ usleep(1000000);
   DBG("\n\n\nbefore vcos delete\n\n\n");
 #ifdef _camera_callback  
   vcos_semaphore_delete(&callback_datav.complete_semaphore);
-#else
-  vcos_semaphore_delete(&callback_data.complete_semaphore);
 #endif
+  vcos_semaphore_delete(&callback_data.complete_semaphore);
+
 
   DBG("\n\n\n after vcos delete \n\n\n");
   
