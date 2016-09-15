@@ -48,17 +48,7 @@
 #include "mmal/util/mmal_default_components.h"
 #include "mmal/util/mmal_connection.h"
 
-// 632.7.0807 hiroshi: from c to cpp
 #include "RaspiCamControl.c"
-
-//631.6.0730 hiroshi: include OpenCV header
-#include "opencv2/core/core.hpp"
-#include "opencv2/objdetect/objdetect.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-//632.7.0807 hiroshi: include raspicam header
-//#include <raspicam/raspicam_cv.h>
-/////////
 
 #define MMAL_CAMERA_PREVIEW_PORT 0
 #define MMAL_CAMERA_VIDEO_PORT 1

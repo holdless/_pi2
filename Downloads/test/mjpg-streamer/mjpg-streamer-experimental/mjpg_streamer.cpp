@@ -42,6 +42,15 @@
 #include "utils.h"
 #include "mjpg_streamer.h"
 
+//631.6.0730, 638.4.0915 hiroshi: include OpenCV header
+#include "opencv2/core/core.hpp"
+#include "opencv2/objdetect/objdetect.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include <opencv2/highgui/highgui.hpp>
+// 638.4.0915 hiroshi. for opencv
+using namespace cv;
+
 /* globals */
 static globals global;
 
@@ -287,6 +296,15 @@ int main(int argc, char *argv[])
         global.outcnt = 1;
     }
 
+    // 638.4.0915 hiroshi
+    // input
+    typedef int (*myInit)(input_parameter*, int);
+    typedef int (*myStop)(int);
+    typedef int (*myRun)(int);
+    typedef int (*myCmd)(int, unsigned int, unsigned int, int, char*);
+    // output
+    typedef int (*myOutputInit)(output_parameter*, int);
+
     /* open input plugin */
     for(i = 0; i < global.incnt; i++) {
         /* this mutex and the conditional variable are used to synchronize access to the global picture buffer */
@@ -316,23 +334,24 @@ int main(int argc, char *argv[])
             closelog();
             exit(EXIT_FAILURE);
         }
-        global.in[i].init = dlsym(global.in[i].handle, "input_init");
+        
+	global.in[i].init = (myInit)dlsym(global.in[i].handle, "input_init");
         if(global.in[i].init == NULL) {
             LOG("%s\n", dlerror());
             exit(EXIT_FAILURE);
         }
-        global.in[i].stop = dlsym(global.in[i].handle, "input_stop");
+        global.in[i].stop = (myStop)dlsym(global.in[i].handle, "input_stop");
         if(global.in[i].stop == NULL) {
             LOG("%s\n", dlerror());
             exit(EXIT_FAILURE);
         }
-        global.in[i].run = dlsym(global.in[i].handle, "input_run");
+        global.in[i].run = (myRun)dlsym(global.in[i].handle, "input_run");
         if(global.in[i].run == NULL) {
             LOG("%s\n", dlerror());
             exit(EXIT_FAILURE);
         }
         /* try to find optional command */
-        global.in[i].cmd = dlsym(global.in[i].handle, "input_cmd");
+        global.in[i].cmd = (myCmd)dlsym(global.in[i].handle, "input_cmd");
 
         global.in[i].param.parameters = strchr(input[i], ' ');
 
@@ -364,24 +383,24 @@ int main(int argc, char *argv[])
             closelog();
             exit(EXIT_FAILURE);
         }
-        global.out[i].init = dlsym(global.out[i].handle, "output_init");
+        global.out[i].init = (myOutputInit)dlsym(global.out[i].handle, "output_init");
         if(global.out[i].init == NULL) {
             LOG("%s\n", dlerror());
             exit(EXIT_FAILURE);
         }
-        global.out[i].stop = dlsym(global.out[i].handle, "output_stop");
+        global.out[i].stop = (myStop)dlsym(global.out[i].handle, "output_stop");
         if(global.out[i].stop == NULL) {
             LOG("%s\n", dlerror());
             exit(EXIT_FAILURE);
         }
-        global.out[i].run = dlsym(global.out[i].handle, "output_run");
+        global.out[i].run = (myRun)dlsym(global.out[i].handle, "output_run");
         if(global.out[i].run == NULL) {
             LOG("%s\n", dlerror());
             exit(EXIT_FAILURE);
         }
 
         /* try to find optional command */
-        global.out[i].cmd = dlsym(global.out[i].handle, "output_cmd");
+        global.out[i].cmd = (myCmd)dlsym(global.out[i].handle, "output_cmd");
 
         global.out[i].param.parameters = strchr(output[i], ' ');
 
@@ -416,6 +435,25 @@ int main(int argc, char *argv[])
         global.out[i].run(global.out[i].param.id);
     }
 
+    // 636.6.0903 hiroshi: get frames    
+    Mat image(320, 240, CV_8UC3);
+
+    char key;
+
+    //set camera params
+//    Camera.set( CV_CAP_PROP_FORMAT, CV_8UC3 );
+    	
+    while (1)
+    {    
+        memcpy (image.ptr<uchar> ( 0 ), global.buf, global.size);
+        imshow("test", image);
+	key = waitKey(1);
+    	if (char(key) == 27)    		
+	    break;
+    }
+
+
+    
     /* wait for signals */
     pause();
 
