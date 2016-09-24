@@ -74,16 +74,10 @@ set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 add_executable(mjpg_streamer mjpg_streamer.cpp
                              utils.cpp)
 
-# 632.7.0807 hiroshi: include raspicam lib
-#find_package(raspicam)
-#include_directories(${raspicam_INCLUDE_DIRS})
-#set(LIBS &{LIBS} ${raspicam_LIBRARIES})
 
 # 638.4.0915 hiroshi: include opencv lib
-target_link_libraries(mjpg_streamer ${OpenCV_LIBS})
-
-#target_link_libraries(mjpg_streamer pthread dl raspicam)
-target_link_libraries(mjpg_streamer pthread dl)
+find_package(OpenCV REQUIRED)
+target_link_libraries(mjpg_streamer pthread dl ${OpenCV_LIBS})
 install(TARGETS mjpg_streamer DESTINATION bin)
 
 #

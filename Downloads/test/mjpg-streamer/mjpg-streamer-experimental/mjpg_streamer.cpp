@@ -436,7 +436,7 @@ int main(int argc, char *argv[])
     }
 
     // 636.6.0903 hiroshi: get frames    
-    Mat image(320, 240, CV_8UC3);
+    Mat image(240, 320, CV_8UC3);
 
     char key;
 
@@ -447,7 +447,7 @@ int main(int argc, char *argv[])
     {    
         memcpy (image.ptr<uchar> ( 0 ), global.buf, global.size);
         imshow("test", image);
-	key = waitKey(1);
+	key = waitKey(100);
     	if (char(key) == 27)    		
 	    break;
     }
