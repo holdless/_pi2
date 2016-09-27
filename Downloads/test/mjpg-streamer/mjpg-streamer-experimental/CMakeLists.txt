@@ -70,9 +70,13 @@ set (CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set (CMAKE_INSTALL_RPATH ${MJPG_STREAMER_PLUGIN_INSTALL_PATH})
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
+# 640.2.0927 hiroshi: add image_proc folder for opencv image processing
+include_directories(image_proc)
 
-add_executable(mjpg_streamer mjpg_streamer.cpp
-                             utils.cpp)
+add_executable(mjpg_streamer 	mjpg_streamer.cpp
+                             	utils.cpp
+				image_proc/image_proc.h
+				image_proc/image_proc.cpp)
 
 
 # 638.4.0915 hiroshi: include opencv lib

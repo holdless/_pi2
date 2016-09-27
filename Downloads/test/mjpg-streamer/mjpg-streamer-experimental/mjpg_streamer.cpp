@@ -48,6 +48,9 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include <opencv2/highgui/highgui.hpp>
+//640.2.0927 hiroshi: include image_proc.h
+#include "image_proc/image_proc.h"
+
 // 638.4.0915 hiroshi. for opencv
 using namespace cv;
 
@@ -193,6 +196,23 @@ static int split_parameters(char *parameter_string, int *argc, char **argv)
     return 1;
 }
 
+//640.1.0926 hiroshi: add rgb2bgr function for opencv 
+void rgb2bgr(Mat& image) 
+{
+    Mat new_img(image.rows, image.cols, CV_8UC3);
+    Mat channel[3], new_channel[3];
+
+    // The actual splitting.
+    split(image, channel);
+    split(new_img, new_channel);
+
+    // 640.1.0926 hiroshi: test for re-combine channels:: BGR2RGB
+    split(new_img, new_channel);
+    new_channel[0] = channel[2];
+    new_channel[1] = channel[1];
+    new_channel[2] = channel[0];
+    merge(new_channel, 3, image);
+}
 /******************************************************************************
 Description.:
 Input Value.:
@@ -209,6 +229,14 @@ int main(int argc, char *argv[])
     output[0] = "output_http.so --port 8080";
     global.outcnt = 0;
     global.incnt = 0;
+    
+    // 640.2.0927 hiroshi: init image: face detection
+    if (!initFaceDetection())
+    {
+	DBG("\n\n\n\ cannot init face detection! n\n\n");
+	return 1;
+    }
+	
 
     /* parameter parsing */
     while(1) {
@@ -446,8 +474,21 @@ int main(int argc, char *argv[])
     while (1)
     {    
         memcpy (image.ptr<uchar> ( 0 ), global.buf, global.size);
-        imshow("test", image);
-	key = waitKey(100);
+	rgb2bgr(image);//rgb2bgr
+	
+	// 640.2.0927 hiroshi:
+	///////////////////////////////////////////
+	//// opencv image processing code here: ///
+	///////////////////////////////////////////
+	flip(image, image, 0);
+	detectFace(image);
+	imshow("test", image);
+	///////////////////////////////////////////
+	///////////////////////////////////////////
+	rgb2bgr(image); // bgr2rgb, it's the same function to rgb2bgr
+	// copy processed frame image into buffer to encoder input port (http send to client)
+        memcpy (global.buf2encoder_input_port, image.ptr<uchar> ( 0 ), global.size);
+	key = waitKey(10);
     	if (char(key) == 27)    		
 	    break;
     }

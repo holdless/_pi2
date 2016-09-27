@@ -459,6 +459,8 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
       
       
       memcpy(pData->offset + pglobal->buf, buffer->data, buffer->length);
+      // init buf2encoder_input_port: the same as buf at first, will be changed by opencv
+//      memcpy(pData->offset + pglobal->buf2encoder_input_port, buffer->data, buffer->length);
       pData->offset += buffer->length;
       //fwrite(buffer->data, 1, buffer->length, pData->file_handle);
       mmal_buffer_header_mem_unlock(buffer);
@@ -542,8 +544,10 @@ static void camera_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 int input_run(int id)
 {
   pglobal->in[id].buf = malloc(width * height * 3);
-  // 636.4.0904 hiroshi: init camera frame buffer
+  // 636.4.0904 hiroshi: init with camera frame buffer size
   pglobal->buf = malloc(width * height * 3);
+  // 640.1.0926 hiroshi: init with camera frame buffer size
+  pglobal->buf2encoder_input_port = malloc(width * height * 3);
 
   if (pglobal->in[id].buf == NULL)
   {
@@ -554,8 +558,10 @@ int input_run(int id)
   if (pthread_create(&worker, 0, worker_thread, NULL) != 0)
   {
     free(pglobal->in[id].buf);
-    // 636.4.0904 hiroshi: free camera frame buffer
+    // 636.4.0904 hiroshi: free frame buffer
     free(pglobal->buf);
+    // 636.4.0904 hiroshi: free frame buffer
+    free(pglobal->buf2encoder_input_port);
 
     fprintf(stderr, "could not start worker thread\n");
     exit(EXIT_FAILURE);
@@ -1259,10 +1265,10 @@ usleep(1000000);
 //    pthread_mutex_lock(&pglobal->db);
   //  pthread_cond_wait(&pglobal->db_update, &pglobal->db);
 
-		DBG("\n\n\nglobal buffer: %d size: %d\n\n\n", pglobal->buf, pglobal->size);
+		DBG("\n\n\nglobal buffer: %d size: %d\n\n\n", pglobal->buf2encoder_input_port, pglobal->size);
 		buffer->data = malloc(pglobal->size);
 		buffer->length = pglobal->size;
-		memcpy(buffer->data, pglobal->buf, pglobal->size);
+		memcpy(buffer->data, pglobal->buf2encoder_input_port, pglobal->size);
 		DBG("\n\n\nbuffer: %d size: %d\n\n\n", buffer->data, buffer->length);
 	
 		if (mmal_port_send_buffer(encoder->input[0], buffer)!= MMAL_SUCCESS)
@@ -1388,9 +1394,12 @@ void worker_cleanup(void *arg)
 
   if(pglobal->in[plugin_number].buf != NULL)
     free(pglobal->in[plugin_number].buf);
-  // 636.4.0901 hiroshi#2: free camera frame buffer
+  // 636.4.0901 hiroshi#2: free frame buffer
   if(pglobal->buf != NULL)
     free(pglobal->buf);
+  // 636.4.0901 hiroshi#2: free frame buffer
+  if(pglobal->buf2encoder_input_port != NULL)
+    free(pglobal->buf2encoder_input_port);
 }
 
 

@@ -86,7 +86,7 @@ struct _globals {
     /* signal fresh frames */
     pthread_mutex_t db;
     pthread_cond_t  db_update;
-    unsigned char *buf;
+    unsigned char *buf, *buf2encoder_input_port;
     int size;
     int camBufCallbackOn;
 
