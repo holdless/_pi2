@@ -4,8 +4,12 @@ cd
 git add /home/pi/Desktop/*.*
 git add /home/pi/Desktop/sys backup/*
 
+# tango project
 git add /home/pi/Desktop/tango/dt/*
 git add /home/pi/Desktop/tango/inte/*
+git add /home/pi/Desktop/tango/remote/*.*
+git add /home/pi/Desktop/tango/remote/icons/*
+git add /home/pi/Desktop/tango/remote/images/*
 
 git add /home/pi/Desktop/_api/*
 git add /home/pi/Desktop/_gcc/*
