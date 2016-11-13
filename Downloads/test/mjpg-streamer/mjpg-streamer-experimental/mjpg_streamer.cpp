@@ -54,6 +54,98 @@
 // 638.4.0915 hiroshi. for opencv
 using namespace cv;
 
+// 642.1.1010 hiroshi: init pthread_mutex_t, pthread_cond_t
+pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+void error(const char *msg)
+{
+    perror(msg);
+    exit(1);
+}
+// cv_thread function
+static void *cv_proc(void *arg)
+{
+    return NULL;
+}
+// tcpSrv_thread function
+static void *tcp_server(void *arg)
+{
+    int srv_socket , client_socket , c;
+    struct sockaddr_in server , client;
+//    char *message;
+    char buffer[256];
+    int n,m;
+     
+    //Create socket
+    srv_socket = socket(AF_INET , SOCK_STREAM , 0);
+    if (srv_socket == -1)
+    {
+        printf("Could not create socket");
+    }
+     
+    //Prepare the sockaddr_in structure
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons( 6969 );
+     
+    //Bind
+    if( bind(srv_socket,(struct sockaddr *)&server , sizeof(server)) < 0)
+    {
+        puts("bind failed");
+        return NULL;
+    }
+    puts("bind done");
+     
+    //Listen
+    listen(srv_socket , 3);
+     
+    //Accept and incoming connection
+    puts("Waiting for incoming connections...");
+    c = sizeof(struct sockaddr_in);
+    client_socket = accept(srv_socket, (struct sockaddr *)&client, (socklen_t*)&c); // <-- "accept" will block to wait
+
+    if (client_socket<0)
+    {
+        perror("accept failed");
+        return NULL;
+    }
+    puts("Connection accepted");
+    
+    // 642.2.1011 hiroshi: receive data from client <-- block here untill read something from client
+    while (n = read(client_socket, buffer, sizeof(buffer)) > 0)
+    {
+	printf("Here is the message: %s\n",buffer);
+	memset(buffer, 0x0, sizeof(buffer));
+	 
+        //Reply to the client
+//        message = "received msg: ";
+//        m = write(client_socket , message , strlen(message));
+//			if (m < 0) error("ERROR writing header to socket");
+        m = write(client_socket , buffer , strlen(buffer));
+			if (m < 0) error("ERROR writing content to socket");
+    }
+ 
+    if (n == 0)
+    {		
+	puts("client disconnected");
+	fflush(stdout);
+    }
+    if (n < 0) 
+	error("ERROR reading from socket");
+ 
+    close(client_socket);
+    close(srv_socket);
+
+    return NULL;
+}
+// talk_thread function
+static void *talk_proc(void *arg)
+{
+    return NULL;
+}
+
+
 /* globals */
 static globals global;
 
@@ -104,6 +196,9 @@ Return Value: -
 ******************************************************************************/
 static void signal_handler(int sig)
 {
+#ifdef _SHOW_DBG
+    DBG("\n\n in signal_handler!\n\n");
+#endif
     int i;
 
     /* signal "stop" to threads */
@@ -220,6 +315,29 @@ Return Value:
 ******************************************************************************/
 int main(int argc, char *argv[])
 {
+    ///642.1.1010 hiroshi: init pthread///
+    pthread_t cv_thread;
+    pthread_t tcpSrv_thread;
+    pthread_t talk_thread;
+    
+    //pthread create
+    // create cv_thread
+    if ( pthread_create( &cv_thread, NULL, cv_proc, NULL) ) {
+	printf("error creating cv_thread.");
+	abort();
+    }
+    // create tcpSrv_thread
+    if ( pthread_create( &tcpSrv_thread, NULL, tcp_server, NULL) ) {
+	printf("error creating tcpSrv_thread.");
+	abort();
+    }
+    // create talk_thread
+    if ( pthread_create( &talk_thread, NULL, talk_proc, NULL) ) {
+	printf("error creating talk_thread.");
+	abort();
+    }
+    
+    
     //char *input  = "input_uvc.so --resolution 640x480 --fps 5 --device /dev/video0";
     char *input[MAX_INPUT_PLUGINS];
     char *output[MAX_OUTPUT_PLUGINS];
@@ -233,7 +351,9 @@ int main(int argc, char *argv[])
     // 640.2.0927 hiroshi: init image: face detection
     if (!initFaceDetection())
     {
+#ifdef _SHOW_DBG
 	DBG("\n\n\n\ cannot init face detection! n\n\n");
+#endif
 	return 1;
     }
 	
@@ -303,10 +423,17 @@ int main(int argc, char *argv[])
 
     /* register signal handler for <CTRL>+C in order to clean up */
     if(signal(SIGINT, signal_handler) == SIG_ERR) {
+#ifdef _SHOW_DBG
+	DBG("\n\ncould not register signal handler\n\n");
+#endif
         LOG("could not register signal handler\n");
         closelog();
         exit(EXIT_FAILURE);
     }
+#ifdef _SHOW_DBG
+    else
+	DBG("\n\nregeister signal OK\n\n");
+#endif
 
     /*
      * messages like the following will only be visible on your terminal
@@ -471,7 +598,7 @@ int main(int argc, char *argv[])
     //set camera params
 //    Camera.set( CV_CAP_PROP_FORMAT, CV_8UC3 );
     	
-    while (1)
+    while (!global.stop)
     {    
         memcpy (image.ptr<uchar> ( 0 ), global.buf, global.size);
 	rgb2bgr(image);//rgb2bgr
@@ -494,6 +621,23 @@ int main(int argc, char *argv[])
     }
 
 
+    ///642.1.1010 hiroshi:
+    //// pthread join ///
+    if ( pthread_join ( cv_thread, NULL ) ) 
+    {
+	printf("error joining cv_thread.");
+	abort();
+    }
+    if ( pthread_join ( tcpSrv_thread, NULL ) ) 
+    {
+	printf("error joining tcpSrv_thread.");
+	abort();
+    }
+    if ( pthread_join ( talk_thread, NULL ) ) 
+    {
+	printf("error joining talk_thread.");
+	abort();
+    }
     
     /* wait for signals */
     pause();
