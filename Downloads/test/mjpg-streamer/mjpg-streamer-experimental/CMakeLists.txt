@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 2.8.3)
+#cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0)
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 project("mjpg-streamer")
@@ -75,8 +76,9 @@ include_directories(image_proc)
 
 add_executable(mjpg_streamer 	mjpg_streamer.cpp
                              	utils.cpp
-				image_proc/image_proc.h
-				image_proc/image_proc.cpp)
+				_imageproc/image_proc.cpp
+				_i2c/i2cPiToArduino.h
+)
 
 
 # 638.4.0915 hiroshi: include opencv lib

@@ -49,7 +49,10 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include <opencv2/highgui/highgui.hpp>
 //640.2.0927 hiroshi: include image_proc.h
-#include "image_proc/image_proc.h"
+#include "_imageproc/image_proc.h"
+
+//652.4.1222
+#include "_i2c/i2cPiToArduino.h"
 
 // 638.4.0915 hiroshi. for opencv
 using namespace cv;
@@ -57,6 +60,12 @@ using namespace cv;
 // 642.1.1010 hiroshi: init pthread_mutex_t, pthread_cond_t
 pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+// 652.4.1222 hiroshi: i2cPiToArduino
+I2C i2c;
+
+
+
 
 void error(const char *msg)
 {
@@ -76,19 +85,19 @@ static void *tcp_server(void *arg)
 //    char *message;
     char buffer[256];
     int n,m;
-     
+
     //Create socket
     srv_socket = socket(AF_INET , SOCK_STREAM , 0);
     if (srv_socket == -1)
     {
         printf("Could not create socket");
     }
-     
+
     //Prepare the sockaddr_in structure
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons( 6969 );
-     
+
     //Bind
     if( bind(srv_socket,(struct sockaddr *)&server , sizeof(server)) < 0)
     {
@@ -96,10 +105,10 @@ static void *tcp_server(void *arg)
         return NULL;
     }
     puts("bind done");
-     
+
     //Listen
     listen(srv_socket , 3);
-     
+
     //Accept and incoming connection
     puts("Waiting for incoming connections...");
     c = sizeof(struct sockaddr_in);
@@ -111,29 +120,54 @@ static void *tcp_server(void *arg)
         return NULL;
     }
     puts("Connection accepted");
-    
+
     // 642.2.1011 hiroshi: receive data from client <-- block here untill read something from client
     while (n = read(client_socket, buffer, sizeof(buffer)) > 0)
     {
 	printf("Here is the message: %s\n",buffer);
+	printf("message lenght: %d\n", strlen(buffer));
+	printf("message size: %d\n", sizeof(buffer));
+
+
+	//652.4.1222 hiroshi: send reveived cmd to Ellum(arduino) via i2c
+	if (strcmp(buffer, "up") == 0)
+	    i2c.send("1");
+	else if (strcmp(buffer, "down") == 0)
+	    i2c.send("2");
+	else if (strcmp(buffer, "left") == 0)
+	    i2c.send("3");
+	else if (strcmp(buffer, "right") == 0)
+	    i2c.send("4");
+	else if (strcmp(buffer, "UL") == 0)
+	    i2c.send("5");
+	else if (strcmp(buffer, "UR") == 0)
+	    i2c.send("5");
+	else if (strcmp(buffer, "DL") == 0)
+	    i2c.send("5");
+	else if (strcmp(buffer, "DR") == 0)
+	    i2c.send("5");
+	else
+	    i2c.send("0");
+
 	memset(buffer, 0x0, sizeof(buffer));
-	 
+
         //Reply to the client
 //        message = "received msg: ";
 //        m = write(client_socket , message , strlen(message));
 //			if (m < 0) error("ERROR writing header to socket");
+
         m = write(client_socket , buffer , strlen(buffer));
 			if (m < 0) error("ERROR writing content to socket");
     }
- 
+
     if (n == 0)
-    {		
+    {
 	puts("client disconnected");
 	fflush(stdout);
     }
-    if (n < 0) 
+    if (n < 0)
 	error("ERROR reading from socket");
- 
+
     close(client_socket);
     close(srv_socket);
 
@@ -200,6 +234,9 @@ static void signal_handler(int sig)
     DBG("\n\n in signal_handler!\n\n");
 #endif
     int i;
+
+    // 652.4.1222 hiroshi: stop motor
+    i2c.send("0");
 
     /* signal "stop" to threads */
     LOG("setting signal to stop\n");
@@ -291,8 +328,8 @@ static int split_parameters(char *parameter_string, int *argc, char **argv)
     return 1;
 }
 
-//640.1.0926 hiroshi: add rgb2bgr function for opencv 
-void rgb2bgr(Mat& image) 
+//640.1.0926 hiroshi: add rgb2bgr function for opencv
+void rgb2bgr(Mat& image)
 {
     Mat new_img(image.rows, image.cols, CV_8UC3);
     Mat channel[3], new_channel[3];
@@ -319,7 +356,7 @@ int main(int argc, char *argv[])
     pthread_t cv_thread;
     pthread_t tcpSrv_thread;
     pthread_t talk_thread;
-    
+
     //pthread create
     // create cv_thread
     if ( pthread_create( &cv_thread, NULL, cv_proc, NULL) ) {
@@ -336,8 +373,8 @@ int main(int argc, char *argv[])
 	printf("error creating talk_thread.");
 	abort();
     }
-    
-    
+
+
     //char *input  = "input_uvc.so --resolution 640x480 --fps 5 --device /dev/video0";
     char *input[MAX_INPUT_PLUGINS];
     char *output[MAX_OUTPUT_PLUGINS];
@@ -347,7 +384,7 @@ int main(int argc, char *argv[])
     output[0] = "output_http.so --port 8080";
     global.outcnt = 0;
     global.incnt = 0;
-    
+
     // 640.2.0927 hiroshi: init image: face detection
     if (!initFaceDetection())
     {
@@ -356,7 +393,7 @@ int main(int argc, char *argv[])
 #endif
 	return 1;
     }
-	
+
 
     /* parameter parsing */
     while(1) {
@@ -489,7 +526,7 @@ int main(int argc, char *argv[])
             closelog();
             exit(EXIT_FAILURE);
         }
-        
+
 	global.in[i].init = (myInit)dlsym(global.in[i].handle, "input_init");
         if(global.in[i].init == NULL) {
             LOG("%s\n", dlerror());
@@ -590,19 +627,19 @@ int main(int argc, char *argv[])
         global.out[i].run(global.out[i].param.id);
     }
 
-    // 636.6.0903 hiroshi: get frames    
+    // 636.6.0903 hiroshi: get frames
     Mat image(240, 320, CV_8UC3);
 
     char key;
 
     //set camera params
 //    Camera.set( CV_CAP_PROP_FORMAT, CV_8UC3 );
-    	
+
     while (!global.stop)
-    {    
+    {
         memcpy (image.ptr<uchar> ( 0 ), global.buf, global.size);
 	rgb2bgr(image);//rgb2bgr
-	
+
 	// 640.2.0927 hiroshi:
 	///////////////////////////////////////////
 	//// opencv image processing code here: ///
@@ -616,29 +653,29 @@ int main(int argc, char *argv[])
 	// copy processed frame image into buffer to encoder input port (http send to client)
         memcpy (global.buf2encoder_input_port, image.ptr<uchar> ( 0 ), global.size);
 	key = waitKey(10);
-    	if (char(key) == 27)    		
+    	if (char(key) == 27)
 	    break;
     }
 
 
     ///642.1.1010 hiroshi:
     //// pthread join ///
-    if ( pthread_join ( cv_thread, NULL ) ) 
+    if ( pthread_join ( cv_thread, NULL ) )
     {
 	printf("error joining cv_thread.");
 	abort();
     }
-    if ( pthread_join ( tcpSrv_thread, NULL ) ) 
+    if ( pthread_join ( tcpSrv_thread, NULL ) )
     {
 	printf("error joining tcpSrv_thread.");
 	abort();
     }
-    if ( pthread_join ( talk_thread, NULL ) ) 
+    if ( pthread_join ( talk_thread, NULL ) )
     {
 	printf("error joining talk_thread.");
 	abort();
     }
-    
+
     /* wait for signals */
     pause();
 
