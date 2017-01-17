@@ -1,0 +1,6 @@
+Opencv doc:
+/usr/share/doc/opencv-doc/examples/
+Opencv haar:
+/usr/share/opencv/haarcascades/
+/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml
+/usr/share/opencv/haarcascades/haarcascade_eye.xml
