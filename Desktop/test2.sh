@@ -4,5 +4,3 @@ cd /home/pi/Downloads/test/mjpg-streamer/mjpg-streamer-experimental
 ./mjpg_streamer -o "output_http.so -w ./www" -i "input_raspicam.so -x 320 -y 240 -quality 60"
 #for usb-cam:
 #./mjpg_streamer -o "output_http.so -w ./www" -i "input_uvc.so -quality 60"
-cd
-cd Desktop

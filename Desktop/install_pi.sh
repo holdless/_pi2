@@ -67,7 +67,8 @@ sudo apt-get install mplayer
 ### <pyhton Wifi module>
 sudo pip install wifi
 
-
+## <codeblocks> 2016.12.22
+sudo apt-get install codeblocks
 
 ##########################
 ### download & install ###

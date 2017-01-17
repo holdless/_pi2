@@ -4,11 +4,14 @@ sudo rm -rf _build
 ###
 sudo mkdir _build
 cd _build
-sudo cmake ..
-# for release mode
+# release mode
+#sudo cmake ..
+# debug mode
+#sudo cmake -DCMAKE_BUILD_TYPE=Debug ..
+# debug mode + CodeBlocks IDE
+sudo cmake .. -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles"
 sudo make
-# for debug mode
-#sudo make CMAKE_BUILD_TYPE=Debug
+###sudo make CMAKE_BUILD_TYPE=Debug
 sudo make install
 
 # move .exe and input/output.so file to mjpg-streamer-experimental directory
