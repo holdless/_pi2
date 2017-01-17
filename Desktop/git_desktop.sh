@@ -2,7 +2,7 @@ cd
 
 # add directories or files you'd like to add to commit to github
 git add /home/pi/Desktop/*.*
-git add /home/pi/Desktop/sys backup/*
+git add /home/pi/Desktop/sys_backup/*
 
 # tango project
 git add /home/pi/Desktop/tango/dt/*
